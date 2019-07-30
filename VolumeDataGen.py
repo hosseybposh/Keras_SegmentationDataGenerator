@@ -539,7 +539,7 @@ class NumpyArrayIterator(Iterator):
             else:
                 nb_channels_4inputs = batch_x.shape[self.image_data_generator.channel_index] / self.image_data_generator.nb_inputs
                 input_channels = []
-                for i in xrange(batch_x.shape[self.image_data_generator.channel_index]):
+                for i in range(batch_x.shape[self.image_data_generator.channel_index]):
                     if nb_channels_4inputs == 1:
                         inputs.append(np.expand_dims(np.rollaxis(batch_x,self.image_data_generator.channel_index,0)[i],-1))
                     else:
@@ -557,7 +557,7 @@ class NumpyArrayIterator(Iterator):
             else:
                 nb_channels_4outputs = batch_y.shape[self.image_data_generator.channel_index] / self.image_data_generator.nb_outputs
                 output_channels = []
-                for i in xrange(batch_y.shape[self.image_data_generator.channel_index]):
+                for i in range(batch_y.shape[self.image_data_generator.channel_index]):
                     if nb_channels_4outputs == 1:
                         outputs.append(np.expand_dims(np.rollaxis(batch_y,self.image_data_generator.channel_index,0)[i],-1))
                     else:
