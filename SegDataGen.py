@@ -261,7 +261,7 @@ class SegmentationDataGenerator(object):
         transform_matrix = transform_matrix_offset_center(transform_matrix, h, w)
         x = apply_transform(x, transform_matrix, img_channel_index,
                             fill_mode=self.fill_mode, cval=self.cval )
-        # For y, mask data, fill mode constant, cval = 0
+        # For y, the mask, fill mode constant, cval = 0
         y = apply_transform( y, transform_matrix, img_channel_index,
                             fill_mode="constant", cval=0 )
         
