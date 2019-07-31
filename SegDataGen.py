@@ -10,6 +10,33 @@ import threading
 
 from keras import backend as K
 
+def get_cropIndices(shape, random_crops):
+    
+    up_down = np.random.random() < 0.5
+    left_right = np.random.random() < 0.5
+    
+    step = ((shape[0]-random_crops[0]) // 5, (shape[1]-random_crops[1]) // 5)
+    
+    nx = np.random.randint(0, 5)
+    ny = np.random.randint(0, 5)
+    start = [0,0]
+    stop = [0,0]
+    if up_down:
+        start[0] = nx*step[0]
+    else:
+        start[0] = shape[0]-random_crops[0] - nx*step[0]
+    
+    stop[0] = start[0] + random_crops[0]
+        
+    if left_right:
+        start[1] = ny*step[1]
+    else:
+        start[1] = shape[1]-random_crops[1] - ny*step[1]
+    
+    stop[1] = start[1] + random_crops[1]
+    
+    return start, stop
+    
 
 def random_channel_shift(x, intensity, channel_index=0):
     x = np.rollaxis(x, channel_index, 0)
@@ -46,6 +73,14 @@ def flip_axis(x, axis):
     x = x[::-1, ...]
     x = x.swapaxes(0, axis)
     return x
+
+
+def crop_axis(x, axis, start_stop):
+    [start,stop] = start_stop
+    x = np.asarray(x).swapaxes(axis, 0)
+    xc = x[start:stop, ...].copy()
+    xc = xc.swapaxes(0, axis)
+    return xc
 
 
 def array_to_img(x, dim_ordering='default', scale=True):
@@ -145,6 +180,7 @@ class SegmentationDataGenerator(object):
                  cval=0.,
                  horizontal_flip=False,
                  vertical_flip=False,
+                 random_crops=False,#(64, 64),
                  rescale=None,
                  dim_ordering='default'):
         if dim_ordering == 'default':
@@ -156,6 +192,7 @@ class SegmentationDataGenerator(object):
         self.rescale = rescale
         self.nb_inputs = nb_inputs
         self.nb_outputs = nb_outputs
+        self.random_crops = random_crops
 
         if dim_ordering not in {'tf', 'th'}:
             raise Exception('dim_ordering should be "tf" (channel after row and '
@@ -217,7 +254,14 @@ class SegmentationDataGenerator(object):
         img_row_index = self.row_index - 1
         img_col_index = self.col_index - 1
         img_channel_index = self.channel_index - 1
-
+        
+        # Crop the images randomly if needed
+        if self.random_crops:
+            start, stop = get_cropIndices((x.shape[img_row_index], x.shape[img_col_index]), self.random_crops)
+#            print('starts:',start)
+#            print('stops:',stop)
+            x, y = x[start[0]:stop[0], start[1]:stop[1]], y[start[0]:stop[0], start[1]:stop[1]]
+        
         # use composition of homographies to generate final transform that needs to be applied
         if self.rotation_range:
             theta = np.pi / 180 * np.random.uniform(-self.rotation_range, self.rotation_range)
@@ -394,18 +438,23 @@ class NumpyArrayIterator(Iterator):
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock so it can be done in parallel
-        batch_x = np.zeros(tuple([current_batch_size] + list(self.X.shape)[1:]))
-        batch_y = np.zeros(tuple([current_batch_size] + list(self.y.shape)[1:]))
+        img_shapes = list(self.X.shape)[1:]
+        out_shapes = list(self.y.shape)[1:]
+        if self.image_data_generator.random_crops:
+            img_shapes[:2] = self.image_data_generator.random_crops
+        
+        batch_x = np.zeros(tuple([current_batch_size] + img_shapes))
+        batch_y = np.zeros(tuple([current_batch_size] + img_shapes))
         # Load the data data Outside the for loop. It's much faster when dealing with HDF5
         self_X = self.X[index_array]
         self_y = self.y[index_array]
+        
         for i, j in enumerate(index_array):
             x = self_X[i]
             label = self_y[i]
-            x, label = self.image_data_generator.random_transform(x.astype('float32'), label.astype("float32"))
-            x = self.image_data_generator.standardize(x)
-            batch_x[i] = x
-            batch_y[i] = label
+            batch_x[i], batch_y[i] = self.image_data_generator.random_transform(x.astype('float32').copy(), label.astype("float32").copy())
+            batch_x[i] = self.image_data_generator.standardize(batch_x[i])
+            
         if self.save_to_dir:
             for i in range(current_batch_size):
                 img = array_to_img(batch_x[i], self.dim_ordering, scale=True)
@@ -456,8 +505,8 @@ class NumpyArrayIterator(Iterator):
                             output_channels = []
         else:
             outputs = batch_y
-            
-        return inputs, ((outputs>0.2)*1).astype(np.float32)
+                
+        return inputs, outputs
     
     
     
