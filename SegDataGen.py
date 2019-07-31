@@ -456,8 +456,8 @@ class NumpyArrayIterator(Iterator):
                             output_channels = []
         else:
             outputs = batch_y
-                
-        return inputs, outputs
+            
+        return inputs, ((outputs>0.2)*1).astype(np.float32)
     
     
     
